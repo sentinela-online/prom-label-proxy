@@ -32,14 +32,19 @@ func main() {
 		insecureListenAddress  string
 		upstream               string
 		label                  string
+		headerName             string
+		queryParam             string
 		enableLabelAPIs        bool
 		unsafePassthroughPaths string // Comma-delimited string.
 		errorOnReplace         bool
+		header                 string
 	)
 
 	flagset := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flagset.StringVar(&insecureListenAddress, "insecure-listen-address", "", "The address the prom-label-proxy HTTP server should listen on.")
 	flagset.StringVar(&upstream, "upstream", "", "The upstream URL to proxy to.")
+	flagset.StringVar(&queryParam, "query-param", "", "The query parameter to obtain the label value from. This or -header is required.")
+	flagset.StringVar(&headerName, "header", "", "The HTTP header name to obtain the label value from. This or -query-param is required.")
 	flagset.StringVar(&label, "label", "", "The label to enforce in all proxied PromQL queries. "+
 		"This label will be also required as the URL parameter to get the value to be injected. For example: -label=tenant will"+
 		" make it required for this proxy to have URL in form of: <URL>?tenant=abc&other_params...")
@@ -51,10 +56,23 @@ func main() {
 		"API like targets or configuration. NOTE: \"all\" matching paths like \"/\" or \"\" and regex are not allowed.")
 	flagset.BoolVar(&errorOnReplace, "error-on-replace", false, "When specified, the proxy will return HTTP status code 400 if the query already contains a label matcher that differs from the one the proxy would inject.")
 
+	flagset.StringVar(&header, "header", "", "(Optional) An HTTP header to get the label value from.")
 	//nolint: errcheck // Parse() will exit on error.
 	flagset.Parse(os.Args[1:])
 	if label == "" {
 		log.Fatalf("-label flag cannot be empty")
+	}
+
+	var opts []injectproxy.Option
+
+	if (queryParam != "" && header != "") || (queryParam == "" && header == "") {
+		log.Fatal("exactly one of -query-param and -header must be given")
+	}
+	if queryParam != "" {
+		opts = append(opts, injectproxy.WithValueFromQuery(queryParam))
+	}
+	if header != "" {
+		opts = append(opts, injectproxy.WithValueFromHeader(header))
 	}
 
 	upstreamURL, err := url.Parse(upstream)
@@ -66,7 +84,6 @@ func main() {
 		log.Fatalf("Invalid scheme for upstream URL %q, only 'http' and 'https' are supported", upstream)
 	}
 
-	var opts []injectproxy.Option
 	if enableLabelAPIs {
 		opts = append(opts, injectproxy.WithEnabledLabelsAPI())
 	}
