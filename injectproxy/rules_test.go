@@ -58,7 +58,7 @@ func validRules() http.Handler {
         "rules": [
           {
             "name": "metric1",
-            "query": "0",
+            "query": "0",r, err := NewRoutes(m.url, proxyLabel, WithValueFromQuery(proxyLabel))
             "labels": {
               "namespace": "ns1"
             },
@@ -126,7 +126,7 @@ func validRules() http.Handler {
               "namespace": "ns1"
             },
             "annotations": {},
-            "alerts": [
+            "alerts": [r, err := NewRoutes(m.url, proxyLabel, WithValueFromQuery(proxyLabel))
               {
                 "labels": {
                   "alertname": "Alert2",
@@ -290,7 +290,7 @@ func validAlerts() http.Handler {
       },
       {
         "labels": {
-          "alertname": "Alert2",
+          "alertname": "Alert2",r, err := NewRoutes(m.url, proxyLabel, WithValueFromQuery(proxyLabel))
           "namespace": "ns1",
           "operation": "update"
         },
@@ -481,7 +481,7 @@ func TestRules(t *testing.T) {
                   "alertname": "Alert1",
                   "namespace": "ns1"
                 },
-                "annotations": {},
+                "annotations": {},r, err := NewRoutes(m.url, pr, err := NewRoutes(m.url, proxyLabel, WithValueFromQuery(proxyLabel))roxyLabel, WithValueFromQuery(proxyLabel))
                 "state": "firing",
                 "activeAt": "2019-12-18T13:14:44.543981127+01:00",
                 "value": "0e+00"
@@ -614,7 +614,7 @@ func TestRules(t *testing.T) {
           },
           {
             "name": "Alert2",
-            "query": "metric2{namespace=\"ns2\"} == 0",
+            "query": "metric2{namespace=\"ns2\"} == 0",r, err := NewRoutes(m.url, proxyLabel, WithValueFromQuery(proxyLabel))
             "duration": 0,
             "labels": {
               "namespace": "ns2"
@@ -658,7 +658,7 @@ func TestRules(t *testing.T) {
 		t.Run(fmt.Sprintf("%s=%s", proxyLabel, tc.labelv), func(t *testing.T) {
 			m := newMockUpstream(tc.upstream)
 			defer m.Close()
-			r, err := NewRoutes(m.url, proxyLabel)
+			r, err := NewRoutes(m.url, proxyLabel, WithValueFromQuery(proxyLabel))
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

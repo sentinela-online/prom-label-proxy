@@ -34,10 +34,11 @@ const (
 )
 
 type routes struct {
-	upstream *url.URL
-	handler  http.Handler
-	label    string
-
+	upstream       *url.URL
+	handler        http.Handler
+	label          string
+	queryParam     string
+	header         string
 	mux            *http.ServeMux
 	modifiers      map[string]func(*http.Response) error
 	errorOnReplace bool
@@ -47,6 +48,8 @@ type options struct {
 	enableLabelAPIs  bool
 	passthroughPaths []string
 	errorOnReplace   bool
+	queryParam       string
+	headerName       string
 }
 
 type Option interface {
@@ -63,6 +66,21 @@ func (f optionFunc) apply(o *options) {
 func WithEnabledLabelsAPI() Option {
 	return optionFunc(func(o *options) {
 		o.enableLabelAPIs = true
+	})
+}
+
+func WithValueFromQuery(paramName string) Option {
+	return optionFunc(func(o *options) {
+		o.queryParam = paramName
+		o.headerName = ""
+	})
+}
+
+// WithValueFromHeader fetches the label value from an HTTP header
+func WithValueFromHeader(headerName string) Option {
+	return optionFunc(func(o *options) {
+		o.headerName = headerName
+		o.queryParam = ""
 	})
 }
 
@@ -132,9 +150,22 @@ func NewRoutes(upstream *url.URL, label string, opts ...Option) (*routes, error)
 		o.apply(&opt)
 	}
 
+	if opt.queryParam == "" && opt.headerName == "" {
+		// fallback to old behaviour
+		opt.queryParam = label
+	}
+
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 
-	r := &routes{upstream: upstream, handler: proxy, label: label, errorOnReplace: opt.errorOnReplace}
+	r := &routes{
+		upstream:       upstream,
+		handler:        proxy,
+		label:          label,
+		errorOnReplace: opt.errorOnReplace,
+		queryParam:     opt.queryParam,
+		header:         opt.headerName,
+	}
+
 	mux := newStrictMux()
 
 	errs := merrors.New(
@@ -198,10 +229,19 @@ func NewRoutes(upstream *url.URL, label string, opts ...Option) (*routes, error)
 
 func (r *routes) enforceLabel(h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		lvalue := req.FormValue(r.label)
-		if lvalue == "" {
-			http.Error(w, fmt.Sprintf("Bad request. The %q query parameter must be provided.", r.label), http.StatusBadRequest)
-			return
+		var lvalue string
+		if r.queryParam != "" {
+			lvalue = req.FormValue(r.queryParam)
+			if lvalue == "" {
+				http.Error(w, fmt.Sprintf("Bad request. The %q query parameter must be provided.", r.queryParam), http.StatusBadRequest)
+				return
+			}
+		} else {
+			lvalue = req.Header.Get(r.header)
+			if lvalue == "" {
+				http.Error(w, fmt.Sprintf("Bad request. The Header %q must be provided.", r.header), http.StatusBadRequest)
+				return
+			}
 		}
 		req = req.WithContext(withLabelValue(req.Context(), lvalue))
 
